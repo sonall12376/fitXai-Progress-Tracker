@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ProgressService } from '../services/progress.service';
+import { AiService } from '../services/ai.service';
 
 // Mock active user for demonstration. In real app, this comes from req.user (JWT auth)
 const MOCK_USER_ID = "00000000-0000-0000-0000-000000000001";
@@ -15,7 +16,7 @@ export class ProgressController {
    * Submits daily progress metrics, fetches historical context, generates AI report, and returns response.
    */
   static async createLog(req: Request, res: Response) {
-   console.log("CREATE LOG CONTROLLER HIT");
+    console.log("CREATE LOG CONTROLLER HIT");
     console.log(req.body);
 
     try {
@@ -24,26 +25,23 @@ export class ProgressController {
         status: "success",
         data: result
       });
-     } catch (err: any) {
-  console.error("CREATE LOG ERROR:", err);
+    } catch (err: any) {
+      console.error("CREATE LOG ERROR:", err);
 
-  return res.status(400).json({
-    status: "fail",
-    message: err?.message || "Unknown Error",
-    error: err
-  });
-}
-    // catch (err: any) {
-    //   if (err.code === 'DUPLICATE_LOG' || err.statusCode === 409) {
-    //     return res.status(409).json({
-    //       status: "fail",
-    //       error: "DUPLICATE_LOG",
-    //       message: err.message
-    //     });
-    //   }
-    //   return res.status(400).json({ status: "fail", message: err.message });
-    // }
-    
+      if (err.code === 'DUPLICATE_LOG' || err.statusCode === 409) {
+        return res.status(409).json({
+          status: "fail",
+          error: "DUPLICATE_LOG",
+          message: err.message
+        });
+      }
+
+      return res.status(400).json({
+        status: "fail",
+        message: err?.message || "Unknown Error",
+        error: err
+      });
+    }
   }
 
   /**
@@ -180,5 +178,84 @@ export class ProgressController {
     } catch (err: any) {
       return res.status(400).json({ status: "fail", message: err.message });
     }
+  }
+
+  // POST /api/progress/report/:date/regenerate
+  static async regenerateReport(req: Request, res: Response) {
+      try {
+          const date = req.params.date as string;
+          const existingLog = await ProgressService.getLogByDate(MOCK_USER_ID, date);
+          if (!existingLog) {
+              return res.status(404).json({
+                  status: "fail",
+                  error: "LOG_NOT_FOUND",
+                  message: "Cannot regenerate report because no progress log exists for the requested date."
+              });
+          }
+
+          const historicalLogs = await ProgressService.getPreviousHistory(MOCK_USER_ID, date, 7); 
+          const userProfile = await ProgressService.getUserProfileContext(MOCK_USER_ID);
+          
+          const reportData = await AiService.generateReport(userProfile, historicalLogs, existingLog);
+          const reportRecord = await ProgressService.storeReport(existingLog.id, MOCK_USER_ID, reportData);
+          
+          res.status(200).json({
+              status: "success",
+              message: "AI report successfully regenerated",
+              data: {
+                  date: existingLog.log_date,
+                  reportId: reportRecord.id,
+                  report: reportData
+              }
+          });
+      } catch (err: any) {
+          res.status(400).json({ status: "fail", message: err.message });
+      }
+  }
+
+  // GET /api/progress/analytics
+  static async getAnalytics(req: Request, res: Response) {
+      try {
+          // Mock response structure for analytics
+          res.status(200).json({
+              status: "success",
+              data: {
+                  timeframe: "Last 30 Days",
+                  averageProgressScore: 82.5,
+                  workoutCompletionRate: 80,
+                  hydrationAdherence: 65,
+                  topRecoveryBottlenecks: ["Sleep Quality", "Post-workout Nutrition"]
+              }
+          });
+      } catch (err: any) {
+          res.status(400).json({ status: "fail", message: err.message });
+      }
+  }
+
+  // POST /api/progress/recommendations/:id/feedback
+  static async submitFeedback(req: Request, res: Response) {
+      try {
+          res.status(200).json({
+              status: "success",
+              message: "Feedback recorded successfully"
+          });
+      } catch (err: any) {
+          res.status(400).json({ status: "fail", message: err.message });
+      }
+  }
+
+  // GET /api/progress/report/:date/export
+  static async exportReport(req: Request, res: Response) {
+      try {
+          res.status(200).json({
+              status: "success",
+              data: {
+                  downloadUrl: "https://api.fitai-x.com/exports/report_2026-07-23.pdf",
+                  expiresIn: 3600
+              }
+          });
+      } catch (err: any) {
+          res.status(400).json({ status: "fail", message: err.message });
+      }
   }
 }

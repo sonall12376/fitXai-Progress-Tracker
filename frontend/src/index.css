@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #0A0A0A;
+    --card: #161616;
+    --card2: #101010;
+    --purple: #F5C400;
+    --violet: #FFD60A;
+    --pink: #FFB300;
+    --blue: #CA8A04;
+    --cyan: #FDE68A;
+    --green: #A3E635;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --text: #FFFFFF;
+    --text2: #B0AA9A;
+    --border: rgba(255,214,10,.09);
+  }
+  body {
+    @apply bg-bg text-textMain font-sans m-0 p-0;
+  }
+  
+  /* Scrollbar hiding */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Custom scrollbar utility */
+.custom-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.custom-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
