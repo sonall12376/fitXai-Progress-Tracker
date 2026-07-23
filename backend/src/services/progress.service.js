@@ -12,6 +12,30 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProgressService = void 0;
 const db_1 = require("../db");
 class ProgressService {
+    static getUserProfileContext(userId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const profileRes = yield (0, db_1.query)('SELECT * FROM user_profiles WHERE user_id = $1', [userId]);
+            const planRes = yield (0, db_1.query)('SELECT * FROM workout_plans WHERE user_id = $1 AND is_active = true', [userId]);
+            return {
+                profile: profileRes.rows[0] || null,
+                plan: planRes.rows[0] || null
+            };
+        });
+    }
+    static getPreviousHistory(userId_1, date_1) {
+        return __awaiter(this, arguments, void 0, function* (userId, date, limit = 7) {
+            const text = `
+      SELECT l.*, row_to_json(r) as report
+      FROM daily_progress_logs l
+      LEFT JOIN ai_reports r ON r.log_id = l.id
+      WHERE l.user_id = $1 AND l.log_date < $2
+      ORDER BY l.log_date DESC
+      LIMIT $3
+    `;
+            const res = yield (0, db_1.query)(text, [userId, date, limit]);
+            return res.rows;
+        });
+    }
     /**
      * Insert a daily progress log.
      */

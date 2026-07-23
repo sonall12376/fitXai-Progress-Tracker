@@ -26,9 +26,9 @@ export class ProgressController {
       // 1. Save Log to DB
       const log = await ProgressService.createLog(MOCK_USER_ID, data);
 
-      // 2. Fetch Context (Historical + Profile) [Mocked for now]
-      const historicalLogs: any[] = []; 
-      const userProfile = {};
+      // 2. Fetch Context (Historical + Profile)
+      const historicalLogs = await ProgressService.getPreviousHistory(MOCK_USER_ID, today, 7); 
+      const userProfile = await ProgressService.getUserProfileContext(MOCK_USER_ID);
 
       // 3. Generate AI Report
       let reportData;
@@ -79,7 +79,9 @@ export class ProgressController {
       }
 
       const updatedLog = await ProgressService.updateLog(MOCK_USER_ID, date, req.body);
-      const reportData = await AiService.generateReport({}, [], req.body);
+      const historicalLogs = await ProgressService.getPreviousHistory(MOCK_USER_ID, date, 7); 
+      const userProfile = await ProgressService.getUserProfileContext(MOCK_USER_ID);
+      const reportData = await AiService.generateReport(userProfile, historicalLogs, req.body);
       const reportRecord = await ProgressService.storeReport(updatedLog.id, MOCK_USER_ID, reportData);
 
       res.status(200).json({
@@ -187,6 +189,85 @@ export class ProgressController {
                   enableSafetyAlerts: settings.enable_safety_alerts,
                   priorityFocus: settings.priority_focus,
                   weeklySummaryOptIn: settings.weekly_summary_opt_in
+              }
+          });
+      } catch (err: any) {
+          res.status(400).json({ status: "fail", message: err.message });
+      }
+  }
+
+  // POST /api/progress/report/:date/regenerate
+  static async regenerateReport(req: Request, res: Response) {
+      try {
+          const date = req.params.date as string;
+          const existingLog = await ProgressService.getLogByDate(MOCK_USER_ID, date);
+          if (!existingLog) {
+              return res.status(404).json({
+                  status: "fail",
+                  error: "LOG_NOT_FOUND",
+                  message: "Cannot regenerate report because no progress log exists for the requested date."
+              });
+          }
+
+          const historicalLogs = await ProgressService.getPreviousHistory(MOCK_USER_ID, date, 7); 
+          const userProfile = await ProgressService.getUserProfileContext(MOCK_USER_ID);
+          
+          const reportData = await AiService.generateReport(userProfile, historicalLogs, existingLog);
+          const reportRecord = await ProgressService.storeReport(existingLog.id, MOCK_USER_ID, reportData);
+          
+          res.status(200).json({
+              status: "success",
+              message: "AI report successfully regenerated",
+              data: {
+                  date: existingLog.log_date,
+                  reportId: reportRecord.id,
+                  report: reportData
+              }
+          });
+      } catch (err: any) {
+          res.status(400).json({ status: "fail", message: err.message });
+      }
+  }
+
+  // GET /api/progress/analytics
+  static async getAnalytics(req: Request, res: Response) {
+      try {
+          // Mock response structure for analytics
+          res.status(200).json({
+              status: "success",
+              data: {
+                  timeframe: "Last 30 Days",
+                  averageProgressScore: 82.5,
+                  workoutCompletionRate: 80,
+                  hydrationAdherence: 65,
+                  topRecoveryBottlenecks: ["Sleep Quality", "Post-workout Nutrition"]
+              }
+          });
+      } catch (err: any) {
+          res.status(400).json({ status: "fail", message: err.message });
+      }
+  }
+
+  // POST /api/progress/recommendations/:id/feedback
+  static async submitFeedback(req: Request, res: Response) {
+      try {
+          res.status(200).json({
+              status: "success",
+              message: "Feedback recorded successfully"
+          });
+      } catch (err: any) {
+          res.status(400).json({ status: "fail", message: err.message });
+      }
+  }
+
+  // GET /api/progress/report/:date/export
+  static async exportReport(req: Request, res: Response) {
+      try {
+          res.status(200).json({
+              status: "success",
+              data: {
+                  downloadUrl: "https://api.fitai-x.com/exports/report_2026-07-23.pdf",
+                  expiresIn: 3600
               }
           });
       } catch (err: any) {
