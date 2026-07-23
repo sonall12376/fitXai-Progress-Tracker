@@ -16,11 +16,12 @@ async function run() {
     await pool.query(schemaSql);
     console.log('Schema executed successfully.');
     
-    // Insert a dummy user so foreign keys work
-    await pool.query(`INSERT INTO users (id, email) VALUES ('00000000-0000-0000-0000-000000000001', 'test@example.com') ON CONFLICT DO NOTHING;`);
-    console.log('Dummy user inserted.');
+    const seedSql = fs.readFileSync(path.join(__dirname, 'db', 'seed.sql'), 'utf8');
+    await pool.query(seedSql);
+    console.log('Seed data inserted successfully.');
+    
   } catch (err) {
-    console.error('Error executing schema:', err);
+    console.error('Error executing DB scripts:', err);
   } finally {
     await pool.end();
   }

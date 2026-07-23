@@ -2,6 +2,29 @@ import { query } from '../db';
 import { AiService } from './ai.service';
 
 export class ProgressService {
+  
+  static async getUserProfileContext(userId: string) {
+    const profileRes = await query('SELECT * FROM user_profiles WHERE user_id = $1', [userId]);
+    const planRes = await query('SELECT * FROM workout_plans WHERE user_id = $1 AND is_active = true', [userId]);
+    return {
+      profile: profileRes.rows[0] || null,
+      plan: planRes.rows[0] || null
+    };
+  }
+
+  static async getPreviousHistory(userId: string, date: string, limit: number = 7) {
+    const text = `
+      SELECT l.*, row_to_json(r) as report
+      FROM daily_progress_logs l
+      LEFT JOIN ai_reports r ON r.log_id = l.id
+      WHERE l.user_id = $1 AND l.log_date < $2
+      ORDER BY l.log_date DESC
+      LIMIT $3
+    `;
+    const res = await query(text, [userId, date, limit]);
+    return res.rows;
+  }
+
   /**
    * Insert a daily progress log.
    */
