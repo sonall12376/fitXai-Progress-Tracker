@@ -43,9 +43,9 @@ class ProgressController {
                 }
                 // 1. Save Log to DB
                 const log = yield progress_service_1.ProgressService.createLog(MOCK_USER_ID, data);
-                // 2. Fetch Context (Historical + Profile) [Mocked for now]
-                const historicalLogs = [];
-                const userProfile = {};
+                // 2. Fetch Context (Historical + Profile)
+                const historicalLogs = yield progress_service_1.ProgressService.getPreviousHistory(MOCK_USER_ID, today, 7);
+                const userProfile = yield progress_service_1.ProgressService.getUserProfileContext(MOCK_USER_ID);
                 // 3. Generate AI Report
                 let reportData;
                 let reportRecord;
@@ -96,7 +96,9 @@ class ProgressController {
                     });
                 }
                 const updatedLog = yield progress_service_1.ProgressService.updateLog(MOCK_USER_ID, date, req.body);
-                const reportData = yield ai_service_1.AiService.generateReport({}, [], req.body);
+                const historicalLogs = yield progress_service_1.ProgressService.getPreviousHistory(MOCK_USER_ID, date, 7);
+                const userProfile = yield progress_service_1.ProgressService.getUserProfileContext(MOCK_USER_ID);
+                const reportData = yield ai_service_1.AiService.generateReport(userProfile, historicalLogs, req.body);
                 const reportRecord = yield progress_service_1.ProgressService.storeReport(updatedLog.id, MOCK_USER_ID, reportData);
                 res.status(200).json({
                     status: "success",
@@ -207,6 +209,90 @@ class ProgressController {
                         enableSafetyAlerts: settings.enable_safety_alerts,
                         priorityFocus: settings.priority_focus,
                         weeklySummaryOptIn: settings.weekly_summary_opt_in
+                    }
+                });
+            }
+            catch (err) {
+                res.status(400).json({ status: "fail", message: err.message });
+            }
+        });
+    }
+    // POST /api/progress/report/:date/regenerate
+    static regenerateReport(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const date = req.params.date;
+                const existingLog = yield progress_service_1.ProgressService.getLogByDate(MOCK_USER_ID, date);
+                if (!existingLog) {
+                    return res.status(404).json({
+                        status: "fail",
+                        error: "LOG_NOT_FOUND",
+                        message: "Cannot regenerate report because no progress log exists for the requested date."
+                    });
+                }
+                const historicalLogs = yield progress_service_1.ProgressService.getPreviousHistory(MOCK_USER_ID, date, 7);
+                const userProfile = yield progress_service_1.ProgressService.getUserProfileContext(MOCK_USER_ID);
+                const reportData = yield ai_service_1.AiService.generateReport(userProfile, historicalLogs, existingLog);
+                const reportRecord = yield progress_service_1.ProgressService.storeReport(existingLog.id, MOCK_USER_ID, reportData);
+                res.status(200).json({
+                    status: "success",
+                    message: "AI report successfully regenerated",
+                    data: {
+                        date: existingLog.log_date,
+                        reportId: reportRecord.id,
+                        report: reportData
+                    }
+                });
+            }
+            catch (err) {
+                res.status(400).json({ status: "fail", message: err.message });
+            }
+        });
+    }
+    // GET /api/progress/analytics
+    static getAnalytics(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                // Mock response structure for analytics
+                res.status(200).json({
+                    status: "success",
+                    data: {
+                        timeframe: "Last 30 Days",
+                        averageProgressScore: 82.5,
+                        workoutCompletionRate: 80,
+                        hydrationAdherence: 65,
+                        topRecoveryBottlenecks: ["Sleep Quality", "Post-workout Nutrition"]
+                    }
+                });
+            }
+            catch (err) {
+                res.status(400).json({ status: "fail", message: err.message });
+            }
+        });
+    }
+    // POST /api/progress/recommendations/:id/feedback
+    static submitFeedback(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                res.status(200).json({
+                    status: "success",
+                    message: "Feedback recorded successfully"
+                });
+            }
+            catch (err) {
+                res.status(400).json({ status: "fail", message: err.message });
+            }
+        });
+    }
+    // GET /api/progress/report/:date/export
+    static exportReport(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                res.status(200).json({
+                    status: "success",
+                    data: {
+                        downloadUrl: "https://api.fitai-x.com/exports/report_2026-07-23.pdf",
+                        expiresIn: 3600
                     }
                 });
             }

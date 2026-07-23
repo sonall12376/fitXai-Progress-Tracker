@@ -7,6 +7,34 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- User Profiles
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(100),
+    age INT CHECK (age >= 13 AND age <= 120),
+    gender VARCHAR(20) CHECK (gender IN ('Male', 'Female', 'Non-binary', 'Prefer not to say')),
+    height INT CHECK (height >= 100 AND height <= 250), -- height in cm
+    weight NUMERIC(5,2) CHECK (weight >= 30.0 AND weight <= 300.0), -- weight in kg
+    fitness_level VARCHAR(20) CHECK (fitness_level IN ('Beginner', 'Intermediate', 'Advanced')),
+    current_goal VARCHAR(30) CHECK (current_goal IN ('Muscle Gain', 'Fat Loss', 'Endurance', 'Maintenance')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Workout Plans
+CREATE TABLE IF NOT EXISTS workout_plans (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan_name VARCHAR(100) DEFAULT 'General Fitness',
+    frequency_per_week INT CHECK (frequency_per_week >= 1 AND frequency_per_week <= 7),
+    target_calories_burn_per_session INT CHECK (target_calories_burn_per_session >= 100 AND target_calories_burn_per_session <= 2000),
+    target_sleep_per_night NUMERIC(3,1) CHECK (target_sleep_per_night >= 5.0 AND target_sleep_per_night <= 12.0),
+    target_water_per_day NUMERIC(3,1) CHECK (target_water_per_day >= 1.5 AND target_water_per_day <= 6.0),
+    target_steps_per_day INT CHECK (target_steps_per_day >= 1000 AND target_steps_per_day <= 50000),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- User AI Settings
 CREATE TABLE IF NOT EXISTS user_ai_settings (
     user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
