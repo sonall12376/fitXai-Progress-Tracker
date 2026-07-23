@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "FitAI-X",
+    "slug": "fitai-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0A0A0A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0A"
+      }
+    },
+    "scheme": "fitai-mobile",
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
+  }
+}
