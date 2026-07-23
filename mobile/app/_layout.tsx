@@ -1,100 +1,112 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Slot } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../src/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path, Circle } from 'react-native-svg';
+import { C, cardShadow } from '../src/theme/Theme';
 
 export default function Layout() {
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
       <Slot />
       
-      {/* Floating Tab Bar Overlay */}
-      <View style={styles.tabBarContainer}>
-        <View style={styles.tabBar}>
-          <TouchableOpacity style={styles.tabItem}>
-            <Ionicons name="home-outline" size={24} color={colors.textSec} />
-            <Text style={styles.tabText}>Home</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tabItem}>
-            <Ionicons name="barbell-outline" size={24} color={colors.textSec} />
-            <Text style={styles.tabText}>Workout</Text>
-          </TouchableOpacity>
-          
-          <View style={styles.fabContainer}>
-            <TouchableOpacity style={styles.fab}>
-              <Ionicons name="add" size={32} color="#000" />
-            </TouchableOpacity>
-          </View>
-          
-          <TouchableOpacity style={styles.tabItem}>
-            <Ionicons name="stats-chart" size={24} color={colors.yellow} />
-            <Text style={[styles.tabText, { color: colors.yellow }]}>Analytics</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tabItem}>
-            <Ionicons name="person-outline" size={24} color={colors.textSec} />
-            <Text style={styles.tabText}>Profile</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Bottom Nav */}
+      <View style={s.bottomnav}>
+        {/* Home */}
+        <TouchableOpacity style={s.navitem} activeOpacity={0.8}>
+          <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <Path d="M3 11l9-8 9 8M5 10v10h14V10" />
+          </Svg>
+          <Text style={s.navtext}>Home</Text>
+        </TouchableOpacity>
+
+        {/* Workout */}
+        <TouchableOpacity style={s.navitem} activeOpacity={0.8}>
+          <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <Path d="M6.5 6.5l11 11M2 8l3-3m14 14l3-3M7 17l-3 3M17 7l3-3" />
+            <Circle cx="6" cy="6" r="2" />
+            <Circle cx="18" cy="18" r="2" />
+          </Svg>
+          <Text style={s.navtext}>Workout</Text>
+        </TouchableOpacity>
+
+        {/* FAB */}
+        <TouchableOpacity style={s.fab} activeOpacity={0.9}>
+          <LinearGradient colors={[C.purple, C.pink]} style={s.fabGradient}>
+            <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
+              <Path d="M12 5v14M5 12h14" />
+            </Svg>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Analytics (Active) */}
+        <TouchableOpacity style={[s.navitem, s.activeItem]} activeOpacity={0.8}>
+          <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.purple} strokeWidth="2">
+            <Path d="M3 3v18h18M7 15l4-4 3 3 5-6" />
+          </Svg>
+          <Text style={[s.navtext, s.activeText]}>Analytics</Text>
+        </TouchableOpacity>
+
+        {/* Profile */}
+        <TouchableOpacity style={s.navitem} activeOpacity={0.8}>
+          <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <Circle cx="12" cy="8" r="4" />
+            <Path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+          </Svg>
+          <Text style={s.navtext}>Profile</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  tabBarContainer: {
+const s = StyleSheet.create({
+  bottomnav: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
-    paddingBottom: 24,
-  },
-  tabBar: {
+    height: 80,
+    backgroundColor: 'rgba(10,10,10,0.95)',
+    borderTopWidth: 1,
+    borderTopColor: C.border,
     flexDirection: 'row',
-    backgroundColor: '#151515',
-    borderRadius: 30,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '90%',
-    borderWidth: 1,
-    borderColor: '#27272A',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 10,
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
+    paddingBottom: 10, // safe area adjustment
   },
-  tabItem: {
+  navitem: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 60,
+    gap: 3,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 16,
   },
-  tabText: {
+  activeItem: {
+    backgroundColor: 'rgba(245,196,0,.12)',
+  },
+  navtext: {
+    color: C.text2,
     fontSize: 10,
-    marginTop: 4,
-    color: colors.textSec,
+    fontWeight: '600',
   },
-  fabContainer: {
-    width: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
+  activeText: {
+    color: C.purple,
   },
   fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.yellow,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    marginTop: -24, // Break out of tab bar
+    ...cardShadow,
+    shadowColor: 'rgba(245,196,0,.6)',
+  },
+  fabGradient: {
+    flex: 1,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    top: -24,
-    position: 'absolute',
-    shadowColor: colors.yellow,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   }
 });
