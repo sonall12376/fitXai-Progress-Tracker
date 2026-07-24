@@ -216,16 +216,11 @@ export class ProgressController {
   // GET /api/progress/analytics
   static async getAnalytics(req: Request, res: Response) {
       try {
-          const range = req.query.range as string || '7d';
-          let days = 7;
-          if (range === '30d') days = 30;
-          if (range === '90d') days = 90;
-
-          const data = await ProgressService.getAnalyticsData(MOCK_USER_ID, days);
-
+          const rangeParam = (req.query.range as string) || '7d';
+          const analytics = await ProgressService.getAnalytics(MOCK_USER_ID, rangeParam);
           res.status(200).json({
               status: "success",
-              data
+              data: analytics,
           });
       } catch (err: any) {
           res.status(400).json({ status: "fail", message: err.message });

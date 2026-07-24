@@ -26,7 +26,8 @@ export class AiService {
   }
 
   private static getModelName(): string {
-    return process.env.GEMINI_MODEL || "models/gemini-3.5-flash";
+    // gemini-1.5-flash has a higher free tier limit (1500 req/day) than newer preview models
+    return process.env.GEMINI_MODEL || "models/gemini-1.5-flash";
   }
 
   private static getClient(apiKey: string): GoogleGenAI {
@@ -73,16 +74,21 @@ export class AiService {
   }
 
   private static isTransientError(err: any): boolean {
-    const msg = String(err?.message || "");
+    const msg = String(err?.message || "").toLowerCase();
+
+    // If we hit a quota limit, immediate retries in 1s or 2s will fail anyway,
+    // because quota resets usually take a minute or a day.
+    // Return false to immediately trigger the offline fallback report.
+    if (msg.includes("quota exceeded") || msg.includes("429") || msg.includes("resource_exhausted")) {
+      return false;
+    }
 
     return (
-      msg.includes("429") ||
       msg.includes("503") ||
       msg.includes("504") ||
-      msg.includes("RESOURCE_EXHAUSTED") ||
-      msg.includes("UNAVAILABLE") ||
+      msg.includes("unavailable") ||
       msg.includes("fetch failed") ||
-      msg.includes("GEMINI_TIMEOUT")
+      msg.includes("gemini_timeout")
     );
   }
 

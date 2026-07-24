@@ -1,234 +1,304 @@
-// STEP 2 — useDataRouting.ts
-// Offline-first hook: bridges API ↔ AsyncStorage ↔ mock data
-
+// STEP 2: useDataRouting.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import {
-  AIInputPayload,
   AIReport,
   AnalyticsResponse,
+  AnalyticsTrendEntry,
   AppState,
   OfflineQueueEntry,
   ProgressFormState,
   ProgressLogRequest,
   ProgressLogResponse,
+  ChartData,
 } from '../types/progress';
-import { mockData, mockReport, MOCK_INPUTS, MOCK_REPORTS, MOCK_CHARTS, ChartData } from '../mockData';
-
-// ── AsyncStorage Key Registry ────────────────────────────────
 const KEYS = {
   profile:       '@fitaix:profile',
-  analytics:     '@fitaix:analytics',        // keyed by segment
+  analytics:     '@fitaix:analytics', 
   report:        '@fitaix:report',
   offlineQueue:  '@fitaix:offlineQueue',
-  jwt:           '@fitaix:jwt',
 } as const;
 
 const analyticsKey = (seg: string) => `${KEYS.analytics}:${seg}`;
 
-// ── Backend base URL ─────────────────────────────────────────
-// For Android Emulator: http://10.0.2.2:3000 | For iOS / Web / Local: http://localhost:3000
-const API_BASE = 'http://192.168.12.100:3000';
+// Using local EXPO_PUBLIC_API_URL routing (no localhost)
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.100:3000';
 
-// ── Segment → query param map ────────────────────────────────
 const SEGMENT_RANGE: Record<string, string> = {
   '7D':  '7d',
   '30D': '30d',
   '90D': '90d',
-  '1Y':  '90d',  // backend supports up to 90d; 1Y uses same max range
+  '1Y':  '90d', 
 };
 
-// ── Abort-safe fetch with timeout ────────────────────────────
-async function apiFetch(
-  path: string,
-  opts: RequestInit = {},
-  timeoutMs = 10_000,
-): Promise<Response> {
-  const jwt = await AsyncStorage.getItem(KEYS.jwt).catch(() => null);
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-
-  try {
-    return await fetch(`${API_BASE}${path}`, {
-      ...opts,
-      signal: ctrl.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-        ...(opts.headers ?? {}),
-      },
-    });
-  } finally {
-    clearTimeout(timer);
+function analyticsToChartData(analytics: any, seg: string): ChartData {
+  if (!analytics || !analytics.aggregates) {
+    return {
+      streakDays: 0, fitnessScore: 0, weightLoss: '0 kg', weightCurrent: '0',
+      weightTrend: '0,30 150,30', strengthGain: '+0%', strengthRadar: '50,50 50,50 50,50 50,50 50,50',
+      workoutCompletion: 0, caloriesAvg: 0, caloriesData: [0, 0, 0, 0, 0, 0, 0], caloriesLabels: ['M','T','W','T','F','S','S'],
+      recoveryTrend: '0,30 150,30', proteinPct: 0, caloriesPct: 0, waterPct: 0, achievements: []
+    };
   }
-}
 
-// ── Offline queue helpers ────────────────────────────────────
-async function readQueue(): Promise<OfflineQueueEntry[]> {
-  const raw = await AsyncStorage.getItem(KEYS.offlineQueue).catch(() => null);
-  return raw ? (JSON.parse(raw) as OfflineQueueEntry[]) : [];
-}
+  const agg   = analytics.aggregates;
+  const trend = analytics.trendData ?? [];
 
-async function writeQueue(q: OfflineQueueEntry[]): Promise<void> {
-  await AsyncStorage.setItem(KEYS.offlineQueue, JSON.stringify(q));
-}
+  function buildSparkline(values: number[], width = 150, height = 30): string {
+    if (!values.length) return '0,30 150,30';
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    return values
+      .map((v, i) => {
+        const x = Math.round((i / Math.max(values.length - 1, 1)) * width);
+        const y = Math.round(height - ((v - min) / range) * height);
+        return `${x},${y}`;
+      })
+      .join(' ');
+  }
 
-async function enqueue(payload: ProgressLogRequest): Promise<void> {
-  const q = await readQueue();
-  q.push({ payload, queuedAt: new Date().toISOString() });
-  await writeQueue(q);
-}
+  function buildRadar(e: number, s: number, w: number, st: number, c: number): string {
+    const norm = [
+      Math.min(e / 10, 1), Math.min(s / 9, 1), Math.min(w / 4, 1),
+      Math.min(st / 12000, 1), Math.min(c / 500, 1),
+    ];
+    const cx = 50, cy = 50, r = 40;
+    const angles = [270, 342, 54, 126, 198];
+    return norm.map((v, i) => {
+        const angle = (angles[i] * Math.PI) / 180;
+        const x = Math.round((cx + v * r * Math.cos(angle)) * 10) / 10;
+        const y = Math.round((cy + v * r * Math.sin(angle)) * 10) / 10;
+        return `${x},${y}`;
+      }).join(' ');
+  }
 
-// Attempts to flush offline queue — best effort, swallows errors
-async function flushQueue(): Promise<void> {
-  const q = await readQueue();
-  if (!q.length) return;
+  let caloriesData: number[] = [0,0,0,0,0,0,0];
+  let caloriesLabels: string[] = ['M','T','W','T','F','S','S'];
 
-  const remaining: OfflineQueueEntry[] = [];
-  for (const entry of q) {
-    try {
-      const res = await apiFetch('/api/progress/log', {
-        method: 'POST',
-        body: JSON.stringify(entry.payload),
+  if (trend.length > 0) {
+    if (seg === '7D') {
+      const recent = trend.slice(-7);
+      caloriesData = recent.map((d: AnalyticsTrendEntry) => d.caloriesBurned || 0);
+      caloriesLabels = recent.map((d: AnalyticsTrendEntry) => {
+        const date = new Date(d.date);
+        return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('en-US', { weekday: 'narrow' });
       });
-      if (!res.ok) remaining.push(entry);
-    } catch {
-      remaining.push(entry);
+      while (caloriesData.length < 7) {
+        caloriesData.unshift(0);
+        caloriesLabels.unshift('-');
+      }
+    } else if (seg === '30D') {
+      caloriesData = [0, 0, 0, 0];
+      caloriesLabels = ['W1', 'W2', 'W3', 'W4'];
+      const recent = trend.slice(-28);
+      recent.forEach((d: AnalyticsTrendEntry, i: number) => {
+        const week = Math.floor(i / 7);
+        caloriesData[week] += (d.caloriesBurned || 0);
+      });
+    } else {
+      const monthTotals: Record<string, number> = {};
+      const monthOrder: string[] = [];
+      trend.forEach((d: AnalyticsTrendEntry) => {
+        const date = new Date(d.date);
+        if (!isNaN(date.getTime())) {
+          const m = date.toLocaleDateString('en-US', { month: 'short' });
+          if (monthTotals[m] === undefined) {
+             monthTotals[m] = 0;
+             monthOrder.push(m);
+          }
+          monthTotals[m] += (d.caloriesBurned || 0);
+        }
+      });
+      caloriesLabels = monthOrder;
+      caloriesData = monthOrder.map(m => monthTotals[m]);
+      if (caloriesLabels.length === 0) {
+        caloriesLabels = ['-'];
+        caloriesData = [0];
+      }
     }
   }
-  await writeQueue(remaining);
-}
+  const weightTrendPoints   = buildSparkline(trend.map((d: AnalyticsTrendEntry) => d.progressScore));
+  const recoveryTrendPoints = buildSparkline(trend.map((d: AnalyticsTrendEntry) => d.sleepHours * 10));
+  const radarPoints         = buildRadar(
+    agg.averageEnergyLevel || 0, agg.averageSleepHours || 0, agg.averageWaterIntake || 0,
+    agg.averageStepsPerDay || 0, agg.averageCaloriesBurned || 0
+  );
 
-// ── Form → API request converter ────────────────────────────
-function formToRequest(form: ProgressFormState): ProgressLogRequest {
+  const fitnessScore = agg.averageProgressScore > 0 ? Math.round(Math.min(Math.max(agg.averageProgressScore, 0), 100)) : 0;
+  const workoutCompletion = agg.workoutAdherenceRate > 0 ? Math.round(agg.workoutAdherenceRate) : 0;
+
+  const avgCalLabel = agg.averageCaloriesBurned > 0 ? `↑ ${Math.round(agg.averageCaloriesBurned)} kcal avg` : '0 kcal';
+  const weightCurrentDisplay = analytics.userWeight ? String(analytics.userWeight) : '0';
+
+  const strengthGain = agg.averageEnergyLevel > 0 ? `+${Math.round((agg.averageEnergyLevel / 10) * 100)}%` : '+0%';
+  const streakDays = agg.workoutsCompleted > 0 ? agg.workoutsCompleted : 0;
+
+  const achievements = (agg.workoutsCompleted > 0 || trend.length > 0) ? [
+    { num: String(agg.workoutsCompleted || 0), label: 'Workouts' },
+    { num: `${Math.round(agg.workoutAdherenceRate || 0)}%`, label: 'Adherence' },
+    { num: String(Math.round(agg.averageProgressScore || 0)), label: 'Avg Score' },
+  ] : [];
+
   return {
-    workoutCompleted:  form.workoutCompleted,
-    workoutType:       form.workoutType,
-    workoutDuration:   parseInt(form.workoutDuration, 10)   || 0,
-    caloriesBurned:    parseInt(form.caloriesBurned, 10)    || 0,
-    caloriesConsumed:  parseInt(form.caloriesConsumed, 10)  || 0,
-    steps:             parseInt(form.steps, 10)             || 0,
-    sleepHours:        parseFloat(form.sleepHours)          || 0,
-    waterIntake:       parseFloat(form.waterIntake)         || 0,
-    mood:              form.mood,
-    energyLevel:       form.energyLevel,
-    injury: {
-      hasInjury:  form.hasInjury,
-      painLevel:  form.hasInjury ? form.painLevel : 0,
-    },
-    notes: form.notes,
+    streakDays,
+    fitnessScore,
+    weightLoss:       avgCalLabel,
+    weightCurrent:    weightCurrentDisplay,
+    weightTrend:      weightTrendPoints,
+    strengthGain,
+    strengthRadar:    radarPoints,
+    workoutCompletion,
+    caloriesAvg:      agg.averageCaloriesBurned > 0 ? Math.round(agg.averageCaloriesBurned) : 0,
+    caloriesData,
+    caloriesLabels,
+    recoveryTrend:    recoveryTrendPoints,
+    proteinPct:       agg.proteinCompliance  > 0 ? Math.min(agg.proteinCompliance,  1) : 0,
+    caloriesPct:      agg.calorieCompliance  > 0 ? Math.min(agg.calorieCompliance,  1) : 0,
+    waterPct:         agg.waterCompliance    > 0 ? Math.min(agg.waterCompliance,    1) : 0,
+    achievements,
   };
 }
 
-// ── Hook ─────────────────────────────────────────────────────
 export function useDataRouting(segment: string = '30D') {
-  const [state, setState] = useState<AppState & { chartData: ChartData | null }>({
-    data:          null,
-    aiReport:      null,
-    analytics:     null,
-    chartData:     null,
-    isLoading:     true,
-    isSubmitting:  false,
-    error:         null,
-    submitError:   null,
+  const [state, setState] = useState<AppState>({
+    data: null,
+    aiReport: null,
+    analytics: null,
+    isLoading: true,
+    isSubmitting: false,
+    error: null,
+    submitError: null,
     submitSuccess: false,
-    source:        'mock',
-    isOnline:      false,
+    source: 'api',
+    isOnline: true,
   });
 
-  // Prevent stale segment inside async callbacks
-  const segRef = useRef(segment);
-  useEffect(() => { segRef.current = segment; }, [segment]);
+  const [chartData, setChartData] = useState<ChartData | null>(null);
+  const isInitialMount = useRef(true);
 
-  // ── Load ────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setState(p => ({ ...p, isLoading: true, error: null }));
+    const net = await NetInfo.fetch();
+    const isOnline = !!net.isConnected;
+    const rangeParam = SEGMENT_RANGE[segment] ?? '30d';
 
-    const net      = await NetInfo.fetch();
-    const online   = !!(net.isConnected && net.isInternetReachable);
-    const seg      = segRef.current;
-    const range    = SEGMENT_RANGE[seg] ?? '30d';
-    const chartFallback = MOCK_CHARTS[seg] ?? MOCK_CHARTS['30D'];
-    const reportFallback = MOCK_REPORTS[seg] ?? MOCK_REPORTS['30D'];
-    const dataFallback   = MOCK_INPUTS[seg]  ?? MOCK_INPUTS['30D'];
-
-    if (online) {
-      // ── Flush any queued offline submissions ───────────────
-      flushQueue().catch(() => {/* best effort */});
-
+    if (isOnline) {
       try {
-        const res = await apiFetch(`/api/progress/analytics?range=${range}`);
+        const [analyticsRes, reportCached] = await Promise.all([
+          fetch(`${API_BASE}/api/progress/analytics?range=${rangeParam}`),
+          AsyncStorage.getItem(KEYS.report)
+        ]);
 
-        if (!res.ok) {
-          // If server responds with 404 or non-200, fallback silently to local mock mode
-          throw new Error(`Analytics API returned ${res.status}`);
-        }
+        if (!analyticsRes.ok) throw new Error('API fetch failed');
+        const analyticsJson = await analyticsRes.json();
+        const analyticsData = analyticsJson.data as AnalyticsResponse;
 
-        const analytics = (await res.json()) as AnalyticsResponse;
+        await AsyncStorage.setItem(analyticsKey(segment), JSON.stringify(analyticsData));
 
-        // Cache to AsyncStorage
-        await AsyncStorage.setItem(analyticsKey(seg), JSON.stringify(analytics)).catch(() => {});
+        const parsedReport = reportCached ? JSON.parse(reportCached) : null;
 
         setState(p => ({
           ...p,
-          data:      dataFallback,
-          analytics,
-          aiReport:  reportFallback,
-          chartData: chartFallback,
+          analytics: analyticsData,
+          aiReport: parsedReport,
+          source: 'api',
+          isOnline: true,
           isLoading: false,
-          source:    'api',
-          isOnline:  true,
         }));
-      } catch {
-        // Fallback to cache or mock on connection error or 404 without breaking UI
-        const cached = await AsyncStorage.getItem(analyticsKey(seg)).catch(() => null);
+      } catch (err) {
+        const cachedAnalytics = await AsyncStorage.getItem(analyticsKey(segment));
+        const cachedReport    = await AsyncStorage.getItem(KEYS.report);
+        
         setState(p => ({
           ...p,
-          data:      dataFallback,
-          analytics: cached ? (JSON.parse(cached) as AnalyticsResponse) : null,
-          aiReport:  reportFallback,
-          chartData: chartFallback,
+          analytics: cachedAnalytics ? JSON.parse(cachedAnalytics) : null,
+          aiReport: cachedReport ? JSON.parse(cachedReport) : null,
+          source: 'asyncstorage',
+          isOnline: false,
           isLoading: false,
-          error:     null, // Keep UI clean in fallback mode
-          source:    cached ? 'asyncstorage' : 'mock',
-          isOnline:  true,
+          error: 'Using offline data'
         }));
       }
     } else {
-      // ── Offline: serve strictly from cache ─────────────────
-      const cached     = await AsyncStorage.getItem(analyticsKey(seg)).catch(() => null);
-      const cachedReport = await AsyncStorage.getItem(KEYS.report).catch(() => null);
+      const cachedAnalytics = await AsyncStorage.getItem(analyticsKey(segment));
+      const cachedReport    = await AsyncStorage.getItem(KEYS.report);
 
       setState(p => ({
         ...p,
-        data:      dataFallback,
-        analytics: cached     ? (JSON.parse(cached) as AnalyticsResponse) : null,
-        aiReport:  cachedReport ? (JSON.parse(cachedReport) as AIReport)  : reportFallback,
-        chartData: chartFallback,
+        analytics: cachedAnalytics ? JSON.parse(cachedAnalytics) : null,
+        aiReport: cachedReport ? JSON.parse(cachedReport) : null,
+        source: 'asyncstorage',
+        isOnline: false,
         isLoading: false,
-        source:    cached ? 'asyncstorage' : 'mock',
-        isOnline:  false,
       }));
     }
   }, [segment]);
 
-  // ── Submit ──────────────────────────────────────────────────
-  const submit = useCallback(async (form: ProgressFormState) => {
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      loadData();
+    } else {
+      loadData();
+    }
+  }, [loadData]);
+
+  useEffect(() => {
+    if (state.analytics) {
+      setChartData(analyticsToChartData(state.analytics, segment));
+    } else if (!state.isLoading) {
+      setChartData(analyticsToChartData(null, segment));
+    }
+  }, [state.analytics, segment, state.isLoading]);
+
+  const enqueue = async (req: ProgressLogRequest) => {
+    try {
+      const q = await AsyncStorage.getItem(KEYS.offlineQueue);
+      const arr: OfflineQueueEntry[] = q ? JSON.parse(q) : [];
+      arr.push({ payload: req, queuedAt: new Date().toISOString() });
+      await AsyncStorage.setItem(KEYS.offlineQueue, JSON.stringify(arr));
+    } catch {}
+  };
+
+  const submit = async (form: ProgressFormState) => {
     setState(p => ({ ...p, isSubmitting: true, submitError: null, submitSuccess: false }));
 
-    const request = formToRequest(form);
-    const net     = await NetInfo.fetch();
-    const online  = !!(net.isConnected && net.isInternetReachable);
-    const seg     = segRef.current;
-    const reportFallback = MOCK_REPORTS[seg] ?? MOCK_REPORTS['30D'];
+    const request: ProgressLogRequest = {
+      workoutCompleted: form.workoutCompleted,
+      workoutType:      form.workoutCompleted ? form.workoutType : '',
+      workoutDuration:  form.workoutCompleted ? parseInt(form.workoutDuration) || 0 : 0,
+      caloriesBurned:   form.workoutCompleted ? parseInt(form.caloriesBurned) || 0 : 0,
+      caloriesConsumed: parseInt(form.caloriesConsumed) || 0,
+      steps:            parseInt(form.steps) || 0,
+      sleepHours:       parseFloat(form.sleepHours) || 0,
+      waterIntake:      parseFloat(form.waterIntake) || 0,
+      mood:             form.mood,
+      energyLevel:      form.energyLevel,
+      injury: {
+        hasInjury: form.hasInjury,
+        painLevel: form.hasInjury ? form.painLevel : 0,
+      },
+      notes: form.notes,
+    };
 
-    if (online) {
+    const net = await NetInfo.fetch();
+    const isOnline = !!net.isConnected;
+
+    if (isOnline) {
       try {
-        const res = await apiFetch('/api/progress/log', {
+        const res = await fetch(`${API_BASE}/api/progress/log`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body:   JSON.stringify(request),
         });
+
+        // Strict 409 DUPLICATE_LOG Catch defined by API CONTRACT
+        if (res.status === 409) {
+          const body = await res.json().catch(() => ({ message: 'Duplicate log' })) as { message?: string };
+          throw new Error(body?.message ?? 'Today\'s metrics have already been recorded. Use PUT request to modify today\'s log.');
+        }
 
         if (res.status === 400) {
           const body = await res.json().catch(() => ({ message: 'Validation failed' })) as { message?: string };
@@ -248,13 +318,9 @@ export function useDataRouting(segment: string = '30D') {
             source:        'api',
           }));
         } else {
-          // If server returns 404 or non-201, enqueue for later sync and generate local report
           await enqueue(request).catch(() => {});
-          await AsyncStorage.setItem(KEYS.report, JSON.stringify(reportFallback)).catch(() => {});
-
           setState(p => ({
             ...p,
-            aiReport:      reportFallback,
             isSubmitting:  false,
             submitSuccess: true,
             source:        'asyncstorage',
@@ -262,16 +328,13 @@ export function useDataRouting(segment: string = '30D') {
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : null;
-        if (msg && msg.includes('Invalid form data')) {
+        if (msg && (msg.includes('Invalid form data') || msg.includes('recorded'))) {
           setState(p => ({ ...p, isSubmitting: false, submitError: msg }));
+          throw err;
         } else {
-          // On network connection error, fallback to local storage report
           await enqueue(request).catch(() => {});
-          await AsyncStorage.setItem(KEYS.report, JSON.stringify(reportFallback)).catch(() => {});
-
           setState(p => ({
             ...p,
-            aiReport:      reportFallback,
             isSubmitting:  false,
             submitSuccess: true,
             source:        'asyncstorage',
@@ -279,36 +342,25 @@ export function useDataRouting(segment: string = '30D') {
         }
       }
     } else {
-      // ── Offline: enqueue and show mock report ──────────────
       await enqueue(request).catch(() => {});
-      await AsyncStorage.setItem(KEYS.report, JSON.stringify(reportFallback)).catch(() => {});
-
       setState(p => ({
         ...p,
-        aiReport:      reportFallback,
         isSubmitting:  false,
         submitSuccess: true,
         source:        'asyncstorage',
       }));
     }
-  }, []);
+  };
 
-  // ── Network listener ────────────────────────────────────────
-  useEffect(() => {
-    const unsub = NetInfo.addEventListener(n => {
-      const isOnline = !!(n.isConnected && n.isInternetReachable);
-      setState(p => ({ ...p, isOnline }));
-      if (isOnline) flushQueue().catch(() => {});
-    });
-    return () => unsub();
-  }, []);
-
-  // ── Reload on segment change ─────────────────────────────────
-  useEffect(() => { load(); }, [load]);
-
-  const clearSubmitStatus = useCallback(() => {
+  const clearSubmitStatus = () => {
     setState(p => ({ ...p, submitError: null, submitSuccess: false }));
-  }, []);
+  };
 
-  return { ...state, submit, reload: load, clearSubmitStatus };
+  return {
+    ...state,
+    chartData,
+    submit,
+    reload: loadData,
+    clearSubmitStatus,
+  };
 }

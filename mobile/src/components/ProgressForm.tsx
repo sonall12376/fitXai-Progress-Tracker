@@ -164,9 +164,24 @@ export function ProgressForm({
     [],
   );
 
+  const [localIsSubmitting, setLocalIsSubmitting] = useState(false);
+  const [localSubmitError, setLocalSubmitError] = useState<string | null>(null);
+
   const handleSubmit = async () => {
-    await onSubmit(form);
+    if (submitting || localIsSubmitting) return;
+    setLocalIsSubmitting(true);
+    setLocalSubmitError(null);
+    try {
+      await onSubmit(form);
+    } catch (err: any) {
+      setLocalSubmitError(err?.message || 'Submission failed');
+    } finally {
+      setLocalIsSubmitting(false);
+    }
   };
+
+  const isFormSubmitting = submitting || localIsSubmitting;
+  const currentError = localSubmitError || submitError;
 
   return (
     <View style={{ gap: 10 }}>
@@ -289,11 +304,11 @@ export function ProgressForm({
           <Text style={f.successTxt}>✅ AI Report Generated Successfully!</Text>
         </View>
       )}
-      {submitError ? (
+      {currentError ? (
         <View style={f.errorBanner}>
-          <Text style={f.errorTxt}>⚠️ {submitError}</Text>
+          <Text style={f.errorTxt}>⚠️ {currentError}</Text>
           {onClear ? (
-            <TouchableOpacity onPress={onClear} style={{ marginTop: 6 }}>
+            <TouchableOpacity onPress={() => { onClear(); setLocalSubmitError(null); }} style={{ marginTop: 6 }}>
               <Text style={{ fontSize: 11, color: C.text2, textDecorationLine: 'underline' }}>Dismiss</Text>
             </TouchableOpacity>
           ) : null}
@@ -303,17 +318,17 @@ export function ProgressForm({
       {/* ── Submit ── */}
       <TouchableOpacity
         onPress={handleSubmit}
-        disabled={submitting}
+        disabled={isFormSubmitting}
         activeOpacity={0.85}
-        style={[f.submitWrap, submitting && { opacity: 0.7 }]}
+        style={[f.submitWrap, isFormSubmitting && { opacity: 0.7 }]}
       >
         <LinearGradient
-          colors={submitting ? [C.card2, C.card2] : [C.purple, C.pink]}
+          colors={isFormSubmitting ? [C.card2, C.card2] : [C.purple, C.pink]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={f.submitGrad}
         >
-          {submitting ? (
+          {isFormSubmitting ? (
             <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
               <ActivityIndicator color={C.text2} size="small" />
               <Text style={[f.submitTxt, { color: C.text2 }]}>Generating AI Analysis...</Text>

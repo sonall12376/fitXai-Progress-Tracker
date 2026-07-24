@@ -1,5 +1,23 @@
 // STEP 1 — TypeScript Interfaces (Aligned with AI_API_CONTRACT.md)
 
+export interface ChartData {
+  streakDays: number;
+  fitnessScore: number;
+  weightLoss: string;
+  weightCurrent: string;
+  weightTrend: string;
+  strengthGain: string;
+  strengthRadar: string;
+  workoutCompletion: number;
+  caloriesAvg: number;
+  caloriesData: number[];
+  caloriesLabels: string[];
+  recoveryTrend: string;
+  proteinPct: number;
+  caloriesPct: number;
+  waterPct: number;
+  achievements: { num: string; label: string }[];
+}
 // ── Form State (UI layer) ─────────────────────────────────────
 export interface ProgressFormState {
   workoutCompleted: boolean;
@@ -91,12 +109,45 @@ export interface AIInputPayload {
 }
 
 // ── API Response — Analytics (GET /api/progress/analytics) ────
+export interface AnalyticsAggregates {
+  averageProgressScore:        number;
+  averageConfidenceScore:      number;
+  workoutsCompleted:           number;
+  workoutsPlanned:             number;
+  workoutsMissed:              number;
+  workoutAdherenceRate:        number;
+  averageSleepHours:           number;
+  sleepTargetAchievementRate:  number;
+  averageWaterIntake:          number;
+  waterTargetAchievementRate:  number;
+  totalCaloriesBurned:         number;
+  averageCaloriesBurned:       number;
+  averageStepsPerDay:          number;
+  stepsTargetAchievementRate:  number;
+  averageEnergyLevel:          number;
+  averagePainLevel:            number;
+  injuryDays:                  number;
+  proteinCompliance:           number;
+  calorieCompliance:           number;
+  waterCompliance:             number;
+}
+
+export interface AnalyticsTrendEntry {
+  date:             string;
+  progressScore:    number;
+  caloriesBurned:   number;
+  sleepHours:       number;
+  waterIntake:      number;
+  steps:            number;
+  workoutCompleted: boolean;
+}
+
 export interface AnalyticsResponse {
-  averageProgressScore: number;
-  workoutsCompleted: number;
-  averageSleepHours: number;
-  // Additional fields the backend may return
-  [key: string]: unknown;
+  dateRange:            string;
+  userWeight?:          number;
+  aggregates:           AnalyticsAggregates;
+  workoutDistribution:  Record<string, number>;
+  trendData:            AnalyticsTrendEntry[];
 }
 
 // ── AI Output (AI Report) ─────────────────────────────────────

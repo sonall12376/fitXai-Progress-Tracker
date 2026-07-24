@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
@@ -29,6 +29,13 @@ export default function AnalyticsDashboard() {
     source, isOnline,
     submit, reload, clearSubmitStatus,
   } = useDataRouting(segment);
+
+  const [showAIReport, setShowAIReport] = useState(false);
+  useEffect(() => {
+    if (submitSuccess) {
+      setShowAIReport(true);
+    }
+  }, [submitSuccess]);
 
   if (!chartData) {
     return (
@@ -111,7 +118,7 @@ export default function AnalyticsDashboard() {
                   <Path d="M12 2s6 6.5 6 11a6 6 0 1 1-12 0c0-4.5 6-11 6-11z" />
                 </Svg>
                 <View>
-                  <Text style={g.fsItemB}>{segment === '7D' ? '7' : segment === '30D' ? '24' : segment === '90D' ? '60' : '300'} Days</Text>
+                  <Text style={g.fsItemB}>{chartData.streakDays} Days</Text>
                   <Text style={g.fsItemL}>Streak</Text>
                 </View>
               </View>
@@ -120,7 +127,7 @@ export default function AnalyticsDashboard() {
                   <Path d="M4 12h4m8 0h4M8 12a4 4 0 018 0" />
                 </Svg>
                 <View>
-                  <Text style={g.fsItemB}>{aiReport?.consistencyAnalysis.completedWorkoutsCount ?? 5}/{aiReport?.consistencyAnalysis.completedWorkoutsCount ? (aiReport.consistencyAnalysis.completedWorkoutsCount + aiReport.consistencyAnalysis.missedWorkoutsCount) : 6}</Text>
+                  <Text style={g.fsItemB}>{analytics?.aggregates.workoutsCompleted ?? 0}/{analytics?.aggregates.workoutsPlanned ?? 0}</Text>
                   <Text style={g.fsItemL}>Workouts</Text>
                 </View>
               </View>
@@ -144,15 +151,15 @@ export default function AnalyticsDashboard() {
             <View style={g.mHead}><Text style={g.mTitle}>Workout Completion</Text></View>
             <WorkoutCompletionDonut percentage={chartData.workoutCompletion} />
             <View style={g.legend}>
-              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.blue }]} /><Text style={g.lTxt}>Completed</Text></View><Text style={g.lNum}>{aiReport?.consistencyAnalysis.completedWorkoutsCount ?? 19}</Text></View>
-              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.red }]} /><Text style={g.lTxt}>Missed</Text></View><Text style={g.lNum}>{aiReport?.consistencyAnalysis.missedWorkoutsCount ?? 6}</Text></View>
-              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.cyan }]} /><Text style={g.lTxt}>Skipped</Text></View><Text style={g.lNum}>3</Text></View>
+              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.blue }]} /><Text style={g.lTxt}>Completed</Text></View><Text style={g.lNum}>{analytics?.aggregates.workoutsCompleted ?? 0}</Text></View>
+              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.red }]} /><Text style={g.lTxt}>Missed</Text></View><Text style={g.lNum}>{analytics?.aggregates.workoutsMissed ?? 0}</Text></View>
+              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.cyan }]} /><Text style={g.lTxt}>Skipped</Text></View><Text style={g.lNum}>0</Text></View>
             </View>
           </View>
           <View style={g.mini}>
             <View style={g.mHead}><Text style={g.mTitle}>Calories Burned</Text></View>
             <Text style={{ fontSize: 10.5, color: C.text2, marginBottom: 6 }}>Avg {chartData.caloriesAvg} kcal</Text>
-            <CaloriesBurnedBars data={chartData.caloriesData} />
+            <CaloriesBurnedBars data={chartData.caloriesData} labels={chartData.caloriesLabels} />
           </View>
           <View style={g.mini}>
             <View style={g.mHead}><Text style={g.mTitle}>Recovery Trend</Text><Text style={[g.mTag, { color: C.green }]}>+ Good</Text></View>
@@ -182,7 +189,7 @@ export default function AnalyticsDashboard() {
         </ScrollView>
 
         {/* ── AI Report Section ── */}
-        {aiReport && (
+        {showAIReport && aiReport && (
           <View style={{ marginTop: 20 }}>
             <View style={g.secHead}><Text style={g.secTitle}>AI Progress Report</Text></View>
             <MotivationBanner msg={aiReport.motivationMessage} />
