@@ -64,4 +64,34 @@ export interface DashboardData {
   calorieHistory: CalorieDataPoint[];
   recoveryTrend: RecoveryDataPoint[];
   nutritionCompliance: NutritionCompliance;
+  aiInsights?: string; // We'll map the motivation_message or recommendations here
+}
+
+// ── Backend API Response Types ──
+
+export interface AnalyticsTrendEntry {
+  date: string;
+  fitnessScore: number;
+  caloriesBurned: number;
+  sleepHours: number;
+  steps: number;
+}
+
+export interface AnalyticsAggregates {
+  avgFitnessScore: number;
+  avgConfidenceScore: number;
+  avgCaloriesBurned: number;
+  avgSteps: number;
+  avgSleep: number;
+  avgWater: number;
+  adherencePercentage: number;
+  workoutsCompleted: number;
+  workoutsMissed: number;
+}
+
+export interface AnalyticsResponse {
+  range: string;
+  trendData: AnalyticsTrendEntry[];
+  aggregates: AnalyticsAggregates;
+  latestReport: any | null; // The most recent AI report JSON
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
@@ -22,7 +22,20 @@ import {
 
 export default function AnalyticsDashboard() {
   const [segment, setSegment] = useState('30D');
-  const { data, aiReport, chartData, isLoading, isSubmitting, error, submitError, source, isOnline, submit, reload } = useDataRouting(segment);
+  const {
+    data, aiReport, analytics, chartData,
+    isLoading, isSubmitting, error,
+    submitError, submitSuccess,
+    source, isOnline,
+    submit, reload, clearSubmitStatus,
+  } = useDataRouting(segment);
+
+  const [showAIReport, setShowAIReport] = useState(false);
+  useEffect(() => {
+    if (submitSuccess) {
+      setShowAIReport(true);
+    }
+  }, [submitSuccess]);
 
   if (!chartData) {
     return (
@@ -52,10 +65,11 @@ export default function AnalyticsDashboard() {
     <SafeAreaView style={g.safe} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      {isSubmitting && (
-        <View style={g.loadingOverlay}>
-          <ActivityIndicator size="large" color={C.purple} />
-          <Text style={g.loadingText}>Generating AI Analysis...</Text>
+      {/* Inline segment-reload indicator (non-blocking) */}
+      {isLoading && chartData && (
+        <View style={g.inlineLoader}>
+          <ActivityIndicator size="small" color={C.purple} />
+          <Text style={g.inlineLoaderTxt}>Refreshing {segment} data...</Text>
         </View>
       )}
 
@@ -104,7 +118,7 @@ export default function AnalyticsDashboard() {
                   <Path d="M12 2s6 6.5 6 11a6 6 0 1 1-12 0c0-4.5 6-11 6-11z" />
                 </Svg>
                 <View>
-                  <Text style={g.fsItemB}>{segment === '7D' ? '7' : segment === '30D' ? '24' : segment === '90D' ? '60' : '300'} Days</Text>
+                  <Text style={g.fsItemB}>{chartData.streakDays} Days</Text>
                   <Text style={g.fsItemL}>Streak</Text>
                 </View>
               </View>
@@ -113,7 +127,7 @@ export default function AnalyticsDashboard() {
                   <Path d="M4 12h4m8 0h4M8 12a4 4 0 018 0" />
                 </Svg>
                 <View>
-                  <Text style={g.fsItemB}>{aiReport?.consistencyAnalysis.completedWorkoutsCount ?? 5}/{aiReport?.consistencyAnalysis.completedWorkoutsCount ? (aiReport.consistencyAnalysis.completedWorkoutsCount + aiReport.consistencyAnalysis.missedWorkoutsCount) : 6}</Text>
+                  <Text style={g.fsItemB}>{analytics?.aggregates.workoutsCompleted ?? 0}/{analytics?.aggregates.workoutsPlanned ?? 0}</Text>
                   <Text style={g.fsItemL}>Workouts</Text>
                 </View>
               </View>
@@ -137,15 +151,15 @@ export default function AnalyticsDashboard() {
             <View style={g.mHead}><Text style={g.mTitle}>Workout Completion</Text></View>
             <WorkoutCompletionDonut percentage={chartData.workoutCompletion} />
             <View style={g.legend}>
-              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.blue }]} /><Text style={g.lTxt}>Completed</Text></View><Text style={g.lNum}>{aiReport?.consistencyAnalysis.completedWorkoutsCount ?? 19}</Text></View>
-              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.red }]} /><Text style={g.lTxt}>Missed</Text></View><Text style={g.lNum}>{aiReport?.consistencyAnalysis.missedWorkoutsCount ?? 6}</Text></View>
-              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.cyan }]} /><Text style={g.lTxt}>Skipped</Text></View><Text style={g.lNum}>3</Text></View>
+              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.blue }]} /><Text style={g.lTxt}>Completed</Text></View><Text style={g.lNum}>{analytics?.aggregates.workoutsCompleted ?? 0}</Text></View>
+              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.red }]} /><Text style={g.lTxt}>Missed</Text></View><Text style={g.lNum}>{analytics?.aggregates.workoutsMissed ?? 0}</Text></View>
+              <View style={g.lRow}><View style={g.lWrap}><View style={[g.lDot, { backgroundColor: C.cyan }]} /><Text style={g.lTxt}>Skipped</Text></View><Text style={g.lNum}>0</Text></View>
             </View>
           </View>
           <View style={g.mini}>
             <View style={g.mHead}><Text style={g.mTitle}>Calories Burned</Text></View>
             <Text style={{ fontSize: 10.5, color: C.text2, marginBottom: 6 }}>Avg {chartData.caloriesAvg} kcal</Text>
-            <CaloriesBurnedBars data={chartData.caloriesData} />
+            <CaloriesBurnedBars data={chartData.caloriesData} labels={chartData.caloriesLabels} />
           </View>
           <View style={g.mini}>
             <View style={g.mHead}><Text style={g.mTitle}>Recovery Trend</Text><Text style={[g.mTag, { color: C.green }]}>+ Good</Text></View>
@@ -175,7 +189,7 @@ export default function AnalyticsDashboard() {
         </ScrollView>
 
         {/* ── AI Report Section ── */}
-        {aiReport && (
+        {showAIReport && aiReport && (
           <View style={{ marginTop: 20 }}>
             <View style={g.secHead}><Text style={g.secTitle}>AI Progress Report</Text></View>
             <MotivationBanner msg={aiReport.motivationMessage} />
@@ -203,9 +217,26 @@ export default function AnalyticsDashboard() {
 
         {/* ── Daily Progress Form ── */}
         <View style={{ marginTop: 30 }}>
-          <View style={[g.secHead, { marginBottom: 16 }]}><Text style={g.secTitle}>Log Daily Progress</Text></View>
-          {submitError && <Text style={{ color: C.red, marginBottom: 10 }}>{submitError}</Text>}
-          <ProgressForm onSubmit={submit} submitting={isSubmitting} />
+          <View style={[g.secHead, { marginBottom: 4 }]}>
+            <Text style={g.secTitle}>Log Daily Progress</Text>
+            {!isOnline && (
+              <View style={g.offlinePill}>
+                <Text style={g.offlineTxt}>📴 Offline — will sync later</Text>
+              </View>
+            )}
+          </View>
+          {error ? (
+            <TouchableOpacity onPress={reload} style={g.errorBanner}>
+              <Text style={g.errorBannerTxt}>⚠️ {error} — tap to retry</Text>
+            </TouchableOpacity>
+          ) : null}
+          <ProgressForm
+            onSubmit={submit}
+            submitting={isSubmitting}
+            submitError={submitError}
+            submitSuccess={submitSuccess}
+            onClear={clearSubmitStatus}
+          />
         </View>
 
         <View style={{ height: 110 }} />
@@ -218,8 +249,14 @@ const g = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 16, paddingTop: 10 },
-  loadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 100, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: C.purple, marginTop: 12, fontWeight: '700' },
+  loadingOverlay:  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 100, justifyContent: 'center', alignItems: 'center' },
+  loadingText:     { color: C.purple, marginTop: 12, fontWeight: '700' },
+  inlineLoader:    { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(245,196,0,0.08)', borderBottomWidth: 1, borderBottomColor: C.border },
+  inlineLoaderTxt: { fontSize: 11, color: C.purple, fontWeight: '700' },
+  offlinePill:     { backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  offlineTxt:      { fontSize: 10, color: C.amber, fontWeight: '700' },
+  errorBanner:     { backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)' },
+  errorBannerTxt:  { color: C.red, fontWeight: '700', fontSize: 12 },
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10, marginBottom: 16 },
   topbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', color: C.text2 },

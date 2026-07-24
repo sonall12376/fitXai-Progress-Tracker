@@ -170,38 +170,61 @@ export function WorkoutCompletionDonut({ percentage }: { percentage: number }) {
 }
 
 // ── Calories Burned Bars ───────────────────────────────────────
-export function CaloriesBurnedBars({ data }: { data: number[] }) {
-  const days = ['M','T','W','T','F','S','S'];
-  const animatedValues = useRef(data.map(() => new Animated.Value(0))).current;
+export function CaloriesBurnedBars({ data, labels = ['M','T','W','T','F','S','S'] }: { data: number[], labels?: string[] }) {
+  // Normalize against the actual max value in data — works for both
+  // mock values (45–110) and real kcal values (300–600+)
+  const safeData = data.length ? data : [0,0,0,0,0,0,0];
+  const maxVal   = Math.max(...safeData, 1); // always at least 1 to avoid divide-by-0
+
+  const animatedValuesRef = useRef<Animated.Value[]>([]);
+  if (animatedValuesRef.current.length !== safeData.length) {
+    animatedValuesRef.current = safeData.map((_, i) => animatedValuesRef.current[i] || new Animated.Value(0));
+  }
+  const animatedValues = animatedValuesRef.current;
 
   useEffect(() => {
-    Animated.stagger(60, 
-      animatedValues.map((val, i) => 
+    Animated.stagger(60,
+      animatedValues.map((val, i) =>
         Animated.timing(val, {
-          toValue: data[i] || 0,
+          toValue: safeData[i] || 0,
           duration: 600,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: false,
         })
       )
     ).start();
-  }, [data]);
+  }, [JSON.stringify(safeData)]);
 
   return (
     <View>
-      <View style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 60 }}>
-        {data.map((h, i) => (
-          <Animated.View key={i} style={{ flex: 1, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: C.blue, height: animatedValues[i].interpolate({ inputRange: [0, 150], outputRange: ['0%', '100%'] }) }} />
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 60 }}>
+        {safeData.map((h, i) => (
+          <Animated.View
+            key={i}
+            style={{
+              flex: 1,
+              borderTopLeftRadius: 3,
+              borderTopRightRadius: 3,
+              backgroundColor: C.blue,
+              // Normalize: height % = (value / maxVal) * 100%
+              height: animatedValues[i].interpolate({
+                inputRange: [0, maxVal],
+                outputRange: ['0%', '100%'],
+                extrapolate: 'clamp',
+              }),
+            }}
+          />
         ))}
       </View>
-      <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-        {days.map((d, i) => (
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        {labels.map((d, i) => (
           <Text key={i} style={{ fontSize: 9, color: C.text2, flex: 1, textAlign: 'center' }}>{d}</Text>
         ))}
       </View>
     </View>
   );
 }
+
 
 // ── Nutrition Compliance Rings ─────────────────────────────────
 export function NutritionComplianceRings({ p1, p2, p3 }: { p1: number, p2: number, p3: number }) {
