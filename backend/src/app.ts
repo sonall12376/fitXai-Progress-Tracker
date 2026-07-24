@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Mount the progress tracker routes under /api/progress
+// Mount routes
 app.use('/api/progress', progressRoutes);
 
 // Health check

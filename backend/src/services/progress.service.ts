@@ -13,6 +13,30 @@ export class ProgressService {
     };
   }
 
+  static async getAnalyticsData(userId: string, days: number) {
+    const text = `
+      SELECT 
+        AVG(r.progress_score) as avg_score,
+        COUNT(l.id) as days_logged,
+        SUM(CASE WHEN l.workout_completed = true THEN 1 ELSE 0 END) as workouts_completed,
+        AVG(l.hydration_ml) as avg_hydration
+      FROM daily_progress_logs l
+      LEFT JOIN ai_reports r ON r.log_id = l.id
+      WHERE l.user_id = $1 AND l.log_date >= current_date - interval '1 day' * $2
+    `;
+    const res = await query(text, [userId, days]);
+    const stats = res.rows[0];
+    
+    // In a real app we would compute bottlenecks dynamically, for now mock top bottlenecks
+    return {
+      timeframe: `Last ${days} Days`,
+      averageProgressScore: stats.avg_score ? parseFloat(stats.avg_score) : 0,
+      workoutCompletionRate: stats.days_logged > 0 ? (stats.workouts_completed / stats.days_logged) * 100 : 0,
+      hydrationAdherence: stats.avg_hydration || 0,
+      topRecoveryBottlenecks: ["Sleep Quality", "Post-workout Nutrition"]
+    };
+  }
+
   static async getPreviousHistory(userId: string, date: string, limit: number = 7) {
     const text = `
       SELECT l.*, row_to_json(r) as report
