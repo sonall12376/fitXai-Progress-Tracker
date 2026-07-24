@@ -2,13 +2,22 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'fitaix',
-  password: 'mohit123',
-  port: 5432,
-});
+require('dotenv').config();
+
+const pool = new Pool(
+  process.env.DATABASE_URL 
+    ? { 
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      }
+    : {
+        user: process.env.DB_USER || 'postgres',
+        host: process.env.DB_HOST || 'localhost',
+        database: process.env.DB_NAME || 'fitaix',
+        password: process.env.DB_PASSWORD || 'mohit123',
+        port: parseInt(process.env.DB_PORT || '5432', 10),
+      }
+);
 
 async function run() {
   try {
