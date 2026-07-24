@@ -1,25 +1,45 @@
-// STEP 1 — TypeScript Interfaces
-// Single source of truth for all data models
+// STEP 1 — TypeScript Interfaces (Aligned with AI_API_CONTRACT.md)
 
-// ── Form ──────────────────────────────────────────────────────
+// ── Form State (UI layer) ─────────────────────────────────────
 export interface ProgressFormState {
   workoutCompleted: boolean;
   workoutType: string;
-  workoutDuration: string;
+  workoutDuration: string;   // string in form, converted to int on submit
   caloriesBurned: string;
   caloriesConsumed: string;
   steps: string;
   sleepHours: string;
   waterIntake: string;
   mood: string;
-  energyLevel: number;
+  energyLevel: number;       // 1–10
   hasInjury: boolean;
-  painLevel: number;
+  painLevel: number;         // 0–10
   injuryDetails: string;
   notes: string;
 }
 
-// ── AI Input ──────────────────────────────────────────────────
+// ── API Request Payload (POST /api/progress/log) ──────────────
+export interface InjuryPayload {
+  hasInjury: boolean;
+  painLevel: number;         // int 0–10
+}
+
+export interface ProgressLogRequest {
+  workoutCompleted: boolean;
+  workoutType: string;
+  workoutDuration: number;   // int (minutes)
+  caloriesBurned: number;    // int
+  caloriesConsumed: number;  // int
+  steps: number;             // int
+  sleepHours: number;        // float
+  waterIntake: number;       // float
+  mood: string;
+  energyLevel: number;       // int 1–10
+  injury: InjuryPayload;
+  notes: string;
+}
+
+// ── Legacy / Internal model (AI Input layer) ──────────────────
 export interface WorkoutPlan {
   planId: string;
   planName: string;
@@ -70,7 +90,16 @@ export interface AIInputPayload {
   previousHistory: DailyProgress[];
 }
 
-// ── AI Output ─────────────────────────────────────────────────
+// ── API Response — Analytics (GET /api/progress/analytics) ────
+export interface AnalyticsResponse {
+  averageProgressScore: number;
+  workoutsCompleted: number;
+  averageSleepHours: number;
+  // Additional fields the backend may return
+  [key: string]: unknown;
+}
+
+// ── AI Output (AI Report) ─────────────────────────────────────
 export interface ConsistencyAnalysis {
   status: 'Excellent' | 'On Track' | 'Needs Attention' | 'Unsatisfactory';
   completedWorkoutsCount: number;
@@ -132,16 +161,31 @@ export interface AIReport {
   motivationMessage: string;
 }
 
+// ── API response wrapper for POST /api/progress/log ──────────
+export interface ProgressLogResponse {
+  data: {
+    report: AIReport;
+  };
+}
+
+// ── Offline queue entry ───────────────────────────────────────
+export interface OfflineQueueEntry {
+  payload: ProgressLogRequest;
+  queuedAt: string; // ISO timestamp
+}
+
 // ── App State ─────────────────────────────────────────────────
 export type DataSource = 'api' | 'asyncstorage' | 'mock';
 
 export interface AppState {
   data: AIInputPayload | null;
   aiReport: AIReport | null;
+  analytics: AnalyticsResponse | null;
   isLoading: boolean;
   isSubmitting: boolean;
   error: string | null;
   submitError: string | null;
+  submitSuccess: boolean;
   source: DataSource;
   isOnline: boolean;
 }
