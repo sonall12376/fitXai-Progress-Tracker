@@ -216,16 +216,16 @@ export class ProgressController {
   // GET /api/progress/analytics
   static async getAnalytics(req: Request, res: Response) {
       try {
-          // Mock response structure for analytics
+          const range = req.query.range as string || '7d';
+          let days = 7;
+          if (range === '30d') days = 30;
+          if (range === '90d') days = 90;
+
+          const data = await ProgressService.getAnalyticsData(MOCK_USER_ID, days);
+
           res.status(200).json({
               status: "success",
-              data: {
-                  timeframe: "Last 30 Days",
-                  averageProgressScore: 82.5,
-                  workoutCompletionRate: 80,
-                  hydrationAdherence: 65,
-                  topRecoveryBottlenecks: ["Sleep Quality", "Post-workout Nutrition"]
-              }
+              data
           });
       } catch (err: any) {
           res.status(400).json({ status: "fail", message: err.message });

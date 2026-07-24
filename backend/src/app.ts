@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 dotenv.config();
 import express from 'express';
 import cors from 'cors';
+import authRoutes from './routes/auth.routes';
+import userRoutes from './routes/user.routes';
 import progressRoutes from './routes/progress.routes';
 
 const app = express();
@@ -11,7 +13,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Mount the progress tracker routes under /api/progress
+// Mount routes
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/progress', progressRoutes);
 
 // Health check
