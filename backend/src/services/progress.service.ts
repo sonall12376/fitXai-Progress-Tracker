@@ -14,26 +14,66 @@ export class ProgressService {
   }
 
   static async getAnalyticsData(userId: string, days: number) {
+    const planRes = await query('SELECT * FROM workout_plans WHERE user_id = $1 AND is_active = true', [userId]);
+    const plan = planRes.rows[0];
+
     const text = `
       SELECT 
         AVG(r.progress_score) as avg_score,
         COUNT(l.id) as days_logged,
         SUM(CASE WHEN l.workout_completed = true THEN 1 ELSE 0 END) as workouts_completed,
-        AVG(l.hydration_ml) as avg_hydration
+        AVG(l.sleep_hours) as avg_sleep,
+        AVG(l.water_intake) as avg_water,
+        SUM(l.calories_burned) as total_calories_burned,
+        AVG(l.steps) as avg_steps,
+        AVG(l.pain_level) as avg_pain
       FROM daily_progress_logs l
       LEFT JOIN ai_reports r ON r.log_id = l.id
       WHERE l.user_id = $1 AND l.log_date >= current_date - interval '1 day' * $2
     `;
     const res = await query(text, [userId, days]);
     const stats = res.rows[0];
-    
-    // In a real app we would compute bottlenecks dynamically, for now mock top bottlenecks
+
+    const distText = `
+      SELECT workout_type, COUNT(*) as count
+      FROM daily_progress_logs
+      WHERE user_id = $1 AND log_date >= current_date - interval '1 day' * $2 AND workout_completed = true AND workout_type IS NOT NULL
+      GROUP BY workout_type
+    `;
+    const distRes = await query(distText, [userId, days]);
+    const workoutDistribution: Record<string, number> = {};
+    distRes.rows.forEach(row => {
+      workoutDistribution[row.workout_type] = parseInt(row.count);
+    });
+
+    const workoutsPlanned = plan ? Math.round((days / 7) * plan.frequency_per_week) : 0;
+    const workoutsCompleted = stats.workouts_completed ? parseInt(stats.workouts_completed) : 0;
+    const workoutAdherenceRate = workoutsPlanned > 0 ? (workoutsCompleted / workoutsPlanned) * 100 : 0;
+
+    const avgSleep = stats.avg_sleep ? parseFloat(stats.avg_sleep) : 0;
+    const sleepTargetAchievementRate = plan && plan.target_sleep_per_night > 0 
+      ? Math.min((avgSleep / plan.target_sleep_per_night) * 100, 100) : 0;
+
+    const avgWater = stats.avg_water ? parseFloat(stats.avg_water) : 0;
+    const waterTargetAchievementRate = plan && plan.target_water_per_day > 0
+      ? Math.min((avgWater / plan.target_water_per_day) * 100, 100) : 0;
+
     return {
-      timeframe: `Last ${days} Days`,
-      averageProgressScore: stats.avg_score ? parseFloat(stats.avg_score) : 0,
-      workoutCompletionRate: stats.days_logged > 0 ? (stats.workouts_completed / stats.days_logged) * 100 : 0,
-      hydrationAdherence: stats.avg_hydration || 0,
-      topRecoveryBottlenecks: ["Sleep Quality", "Post-workout Nutrition"]
+      dateRange: `${days}d`,
+      aggregates: {
+        averageProgressScore: stats.avg_score ? parseFloat(parseFloat(stats.avg_score).toFixed(1)) : 0,
+        workoutsCompleted,
+        workoutsPlanned,
+        workoutAdherenceRate: parseFloat(workoutAdherenceRate.toFixed(1)),
+        averageSleepHours: parseFloat(avgSleep.toFixed(1)),
+        sleepTargetAchievementRate: parseFloat(sleepTargetAchievementRate.toFixed(1)),
+        averageWaterIntake: parseFloat(avgWater.toFixed(1)),
+        waterTargetAchievementRate: parseFloat(waterTargetAchievementRate.toFixed(1)),
+        totalCaloriesBurned: stats.total_calories_burned ? parseInt(stats.total_calories_burned) : 0,
+        averageStepsPerDay: stats.avg_steps ? Math.round(parseFloat(stats.avg_steps)) : 0,
+        averagePainLevel: stats.avg_pain ? parseFloat(parseFloat(stats.avg_pain).toFixed(1)) : 0
+      },
+      workoutDistribution
     };
   }
 

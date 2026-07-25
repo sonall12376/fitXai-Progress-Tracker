@@ -106,3 +106,7 @@ CREATE TABLE IF NOT EXISTS ai_reports (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(log_id)
 );
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_daily_progress_user_date
+ON daily_progress_logs(user_id, log_date DESC);

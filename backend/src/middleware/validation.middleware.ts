@@ -27,6 +27,13 @@ export const logSchema = z.object({
   message: "workoutType, workoutDuration, and caloriesBurned are required if workoutCompleted is true"
 });
 
+export const settingsSchema = z.object({
+  coachPersona: z.enum(['Motivational', 'Strict', 'Analytical', 'Enthusiastic']).optional(),
+  enableSafetyAlerts: z.boolean().optional(),
+  priorityFocus: z.array(z.string()).optional(),
+  weeklySummaryOptIn: z.boolean().optional()
+});
+
 export const validateRequest = (schema: z.ZodSchema<any>) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {

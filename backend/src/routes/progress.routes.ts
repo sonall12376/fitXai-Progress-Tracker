@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { ProgressController } from '../controllers/progress.controller';
-import { validateRequest, logSchema } from '../middleware/validation.middleware';
+import { validateRequest, logSchema, settingsSchema } from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -15,7 +15,7 @@ router.get('/report/:date', ProgressController.getReport);
 
 // Settings
 router.get('/settings', ProgressController.getSettings);
-router.put('/settings', ProgressController.updateSettings);
+router.put('/settings', validateRequest(settingsSchema), ProgressController.updateSettings);
 
 // Advanced Endpoints
 router.get('/analytics', ProgressController.getAnalytics);
