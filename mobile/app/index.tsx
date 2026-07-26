@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity, ActivityIndicator, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 import { C, S, cardShadow } from '../src/theme/Theme';
 import { useDataRouting } from '../src/hooks/useDataRouting';
@@ -191,26 +193,127 @@ export default function AnalyticsDashboard() {
         {/* ── AI Report Section ── */}
         {showAIReport && aiReport && (
           <View style={{ marginTop: 20 }}>
-            <View style={g.secHead}><Text style={g.secTitle}>AI Progress Report</Text></View>
+            <View style={g.secHead}>
+              <Text style={g.secTitle}>AI Progress Report</Text>
+              <TouchableOpacity onPress={async () => {
+                const userName = data?.userProfile?.name || 'User';
+                const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; padding: 40px; }
+    h1 { color: #5B21B6; font-size: 28px; margin-bottom: 5px; }
+    h2 { color: #4C1D95; font-size: 20px; border-bottom: 2px solid #E5E7EB; padding-bottom: 8px; margin-top: 30px; }
+    h3 { color: #374151; font-size: 16px; margin-bottom: 4px; }
+    p { line-height: 1.5; font-size: 14px; margin-top: 0; color: #4B5563; }
+    .header { text-align: center; margin-bottom: 40px; }
+    .date { color: #6B7280; font-size: 14px; }
+    .score-card { background: #F3F4F6; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
+    .score { font-size: 48px; font-weight: bold; color: #5B21B6; }
+    .confidence { color: #10B981; font-weight: bold; font-size: 14px; }
+    .grid { display: flex; flex-wrap: wrap; gap: 20px; }
+    .card { background: #F9FAFB; border: 1px solid #E5E7EB; padding: 15px; border-radius: 8px; flex: 1; min-width: 250px; }
+    ul { margin: 0; padding-left: 20px; }
+    li { margin-bottom: 8px; font-size: 14px; color: #4B5563; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>FitAI-X Progress Report</h1>
+    <p class="date">Prepared for ${userName} on ${new Date().toLocaleDateString()}</p>
+    <p style="font-style: italic; color: #6B7280;">"${aiReport.motivationMessage}"</p>
+  </div>
+
+  <div class="score-card">
+    <h3>Today's Analysis</h3>
+    <div class="score">${aiReport.progressScore} <span style="font-size:24px;color:#9CA3AF;">/ 100</span></div>
+    <p class="confidence">AI Confidence: ${aiReport.confidenceScore}%</p>
+    <p><strong>Goal Progress:</strong> ${aiReport.goalProgress.status} - ${aiReport.goalProgress.qualitativeAssessment}</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Consistency & Streak</h2>
+      <p><strong>Status:</strong> ${aiReport.consistencyAnalysis.status}</p>
+      <p><strong>Done:</strong> ${aiReport.consistencyAnalysis.completedWorkoutsCount} | <strong>Missed:</strong> ${aiReport.consistencyAnalysis.missedWorkoutsCount}</p>
+      <p><strong>Adherence:</strong> ${aiReport.consistencyAnalysis.weeklyAdherencePercentage}%</p>
+    </div>
+
+    <div class="card">
+      <h2>Workout Analysis</h2>
+      <p><strong>Intensity:</strong> ${aiReport.workoutPerformance.intensityLevel}</p>
+      <p>${aiReport.workoutPerformance.feedback}</p>
+      <h3>Week-over-Week</h3>
+      <p><strong>Status:</strong> ${aiReport.improvementAnalysis.isImproving ? 'Improving' : 'Declining'}</p>
+      <ul>
+        ${aiReport.improvementAnalysis.metricChanges.map(m => `<li>${m}</li>`).join('')}
+      </ul>
+      <p><strong>Primary Bottleneck:</strong> ${aiReport.improvementAnalysis.primaryBottleneck}</p>
+    </div>
+
+    <div class="card">
+      <h2>Recovery Analysis</h2>
+      <p><strong>Status:</strong> ${aiReport.recoveryAnalysis.status}</p>
+      <p><strong>Sleep:</strong> ${aiReport.recoveryAnalysis.sleepQuality} | <strong>Hydration:</strong> ${aiReport.recoveryAnalysis.hydrationStatus} | <strong>Fatigue:</strong> ${aiReport.recoveryAnalysis.fatigueLevel}</p>
+      <ul>
+        ${aiReport.recoveryAnalysis.insights.map(i => `<li>${i}</li>`).join('')}
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Risk & Vulnerabilities</h2>
+      <p><strong>Injury Risk:</strong> ${aiReport.injuryRisk.riskLevel}</p>
+      <p><strong>Critical Areas:</strong> ${aiReport.injuryRisk.criticalAreas.join(', ')}</p>
+      <p><strong>Preventative Action:</strong> ${aiReport.injuryRisk.preventativeAction}</p>
+      <h3>Vulnerability Areas</h3>
+      <ul>
+        ${aiReport.userVulnerabilities.map(v => `<li>${v}</li>`).join('')}
+      </ul>
+    </div>
+  </div>
+
+  <h2>Recommendations</h2>
+  <ul>
+    ${aiReport.personalizedRecommendations.map(r => `
+      <li>
+        <strong>[${r.category}]</strong> ${r.action} 
+        <br/><span style="color:#6B7280; font-size: 13px;">${r.rationale}</span>
+      </li>
+    `).join('')}
+  </ul>
+</body>
+</html>`;
+                try {
+                  const { uri } = await Print.printToFileAsync({ html });
+                  if (await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(uri);
+                  }
+                } catch (e) {}
+              }}>
+                <Text style={g.secLink}>Export Report</Text>
+              </TouchableOpacity>
+            </View>
             <MotivationBanner msg={aiReport.motivationMessage} />
             <ScoreCard score={aiReport.progressScore} confidence={aiReport.confidenceScore} goal={aiReport.goalProgress} name={data?.userProfile?.name || 'User'} />
             
-            <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Consistency</Text></View>
+            <View style={g.secHead}><Text style={g.secTitle}>Consistency</Text></View>
             <ConsistencyCard status={aiReport.consistencyAnalysis.status} completed={aiReport.consistencyAnalysis.completedWorkoutsCount} missed={aiReport.consistencyAnalysis.missedWorkoutsCount} adherence={aiReport.consistencyAnalysis.weeklyAdherencePercentage} />
             
-            <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Progress Summary</Text></View>
+            <View style={g.secHead}><Text style={g.secTitle}>Progress Summary</Text></View>
             <WorkoutSummary perf={aiReport.workoutPerformance} imp={aiReport.improvementAnalysis} />
             
-            <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Recovery Analysis</Text></View>
+            <View style={g.secHead}><Text style={g.secTitle}>Recovery Analysis</Text></View>
             <RecoveryCard rec={aiReport.recoveryAnalysis} />
             
-            <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Vulnerability Analysis</Text></View>
+            <View style={g.secHead}><Text style={g.secTitle}>Vulnerability Analysis</Text></View>
             <VulnerabilityCard items={aiReport.userVulnerabilities} />
             
-            <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Injury Risk Analysis</Text></View>
+            <View style={g.secHead}><Text style={g.secTitle}>Injury Risk Analysis</Text></View>
             <InjuryCard risk={aiReport.injuryRisk} />
             
-            <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Recommendations</Text></View>
+            <View style={g.secHead}><Text style={g.secTitle}>Recommendations</Text></View>
             <RecsSection recs={aiReport.personalizedRecommendations} />
           </View>
         )}
