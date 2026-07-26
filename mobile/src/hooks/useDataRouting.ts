@@ -22,8 +22,19 @@ const KEYS = {
 
 const analyticsKey = (seg: string) => `${KEYS.analytics}:${seg}`;
 
-// Using local EXPO_PUBLIC_API_URL routing (no localhost)
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.100:3000';
+import Constants from 'expo-constants';
+
+const getApiBase = () => {
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+  const debuggerHost = Constants.expoConfig?.hostUri || (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
+  if (debuggerHost) {
+    const ip = debuggerHost.split(':')[0];
+    return `http://${ip}:3000`;
+  }
+  return 'http://10.0.2.2:3000';
+};
+
+const API_BASE = getApiBase();
 
 const SEGMENT_RANGE: Record<string, string> = {
   '7D':  '7d',
@@ -178,6 +189,37 @@ export function useDataRouting(segment: string = '30D') {
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const isInitialMount = useRef(true);
 
+  const processOfflineQueue = useCallback(async () => {
+    try {
+      const q = await AsyncStorage.getItem(KEYS.offlineQueue);
+      if (!q) return;
+      const arr: OfflineQueueEntry[] = JSON.parse(q);
+      if (!arr.length) return;
+
+      const remaining: OfflineQueueEntry[] = [];
+      for (const item of arr) {
+        try {
+          const res = await fetch(`${API_BASE}/api/progress/log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item.payload),
+          });
+          if (res.status !== 201 && res.status !== 409 && !res.ok) {
+            remaining.push(item);
+          }
+        } catch {
+          remaining.push(item);
+        }
+      }
+
+      if (remaining.length > 0) {
+        await AsyncStorage.setItem(KEYS.offlineQueue, JSON.stringify(remaining));
+      } else {
+        await AsyncStorage.removeItem(KEYS.offlineQueue);
+      }
+    } catch {}
+  }, []);
+
   const loadData = useCallback(async () => {
     setState(p => ({ ...p, isLoading: true, error: null }));
     const net = await NetInfo.fetch();
@@ -185,6 +227,7 @@ export function useDataRouting(segment: string = '30D') {
     const rangeParam = SEGMENT_RANGE[segment] ?? '30d';
 
     if (isOnline) {
+      await processOfflineQueue();
       try {
         const [analyticsRes, reportCached] = await Promise.all([
           fetch(`${API_BASE}/api/progress/analytics?range=${rangeParam}`),

@@ -462,7 +462,7 @@ export class ProgressService {
    * Retrieves a single daily progress log by user and date.
    */
   static async getLogByDate(userId: string, date: string) {
-    const res = await query('SELECT * FROM daily_progress_logs WHERE user_id = $1 AND log_date = $2', [userId, date]);
+    const res = await query('SELECT *, log_date::text as log_date FROM daily_progress_logs WHERE user_id = $1 AND log_date = $2::date', [userId, date]);
     return res.rows[0];
   }
 
