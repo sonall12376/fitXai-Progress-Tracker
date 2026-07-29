@@ -40,7 +40,7 @@ const SEGMENT_RANGE: Record<string, string> = {
   '7D':  '7d',
   '30D': '30d',
   '90D': '90d',
-  '1Y':  '90d', 
+  '1Y':  '365d',
 };
 
 function analyticsToChartData(analytics: any, seg: string): ChartData {
@@ -101,14 +101,34 @@ function analyticsToChartData(analytics: any, seg: string): ChartData {
         caloriesLabels.unshift('-');
       }
     } else if (seg === '30D') {
-      caloriesData = [0, 0, 0, 0];
-      caloriesLabels = ['W1', 'W2', 'W3', 'W4'];
-      const recent = trend.slice(-28);
+      caloriesData = [0, 0, 0, 0, 0];
+      caloriesLabels = ['W1', 'W2', 'W3', 'W4', 'W5'];
+      const recent = trend.slice(-35);
       recent.forEach((d: AnalyticsTrendEntry, i: number) => {
-        const week = Math.floor(i / 7);
+        const week = Math.min(4, Math.floor(i / 7));
         caloriesData[week] += (d.caloriesBurned || 0);
       });
-    } else {
+      // Trim empty W5 if all entries fit into 4 weeks
+      if (caloriesData[4] === 0 && recent.length <= 28) {
+        caloriesData.pop();
+        caloriesLabels.pop();
+      }
+    } else if (seg === '1Y') {
+      const monthTotals: Record<string, number> = {};
+      const allMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      allMonths.forEach(m => { monthTotals[m] = 0; });
+      trend.forEach((d: AnalyticsTrendEntry) => {
+        const date = new Date(d.date);
+        if (!isNaN(date.getTime())) {
+          const m = date.toLocaleDateString('en-US', { month: 'short' });
+          if (monthTotals[m] !== undefined) {
+            monthTotals[m] += (d.caloriesBurned || 0);
+          }
+        }
+      });
+      caloriesLabels = allMonths;
+      caloriesData = allMonths.map(m => monthTotals[m]);
+    } else { // 90D
       const monthTotals: Record<string, number> = {};
       const monthOrder: string[] = [];
       trend.forEach((d: AnalyticsTrendEntry) => {

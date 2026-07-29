@@ -391,10 +391,10 @@ The response returned by Gemini AI must match the exact JSON schema defined in [
 ---
 
 ### Route 7: `GET /api/progress/analytics`
-*   **Purpose**: Retrieves aggregated database statistics calculated over a range (7, 30, or 90 days) to populate dashboard analytics panels without overloading client-side rendering computations.
+*   **Purpose**: Retrieves aggregated database statistics calculated over a range (7, 30, 90, or 365 days) to populate dashboard analytics panels without overloading client-side rendering computations.
 *   **Authentication**: **Required**
 *   **Query Parameters**:
-    *   `range` (Optional String): Enum: `["7d", "30d", "90d"]`. Default: `"7d"`.
+    *   `range` (Optional String): Enum: `["7d", "30d", "90d", "365d", "1y"]`. Default: `"7d"`.
 *   **Success Response JSON (Status Code: `200 OK`)**:
     ```json
     {

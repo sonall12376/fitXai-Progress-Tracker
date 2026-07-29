@@ -537,16 +537,18 @@ export class ProgressService {
   /**
    * Retrieves real aggregated analytics from PostgreSQL for the dashboard.
    * Calculates averages, completion rates, and distribution from daily_progress_logs + ai_reports.
-   * range: '7d' | '30d' | '90d'
+   * range: '7d' | '30d' | '90d' | '365d' | '1y'
    */
   static async getAnalytics(userId: string, range: string = '7d') {
     // Map range string to interval
     const intervalMap: Record<string, string> = {
-      '7d':  '7 days',
-      '30d': '30 days',
-      '90d': '90 days',
+      '7d':   '7 days',
+      '30d':  '30 days',
+      '90d':  '90 days',
+      '365d': '365 days',
+      '1y':   '365 days',
     };
-    const interval = intervalMap[range] ?? '30 days';
+    const interval = intervalMap[range.toLowerCase()] ?? '30 days';
 
     // ── Core Aggregates Query ──────────────────────────────────
     const aggregatesQuery = `

@@ -77,10 +77,14 @@ export const useDataRouting = (timeRange: string = '30D') => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch(`${API_BASE}/api/progress/analytics?range=${timeRange}`);
+        const rangeParamMap: Record<string, string> = {
+          '7D': '7d',
+          '30D': '30d',
+          '90D': '90d',
+          '1Y': '365d',
+        };
+        const rangeParam = rangeParamMap[timeRange] || timeRange.toLowerCase();
+        const response = await fetch(`${API_BASE}/api/progress/analytics?range=${rangeParam}`);
         if (!response.ok) throw new Error('API fetch failed');
         
         const rawData = await response.json();

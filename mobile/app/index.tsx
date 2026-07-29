@@ -204,8 +204,12 @@ export default function AnalyticsDashboard() {
             <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Recovery Analysis</Text></View>
             <RecoveryCard rec={aiReport.recoveryAnalysis} />
             
-            <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Vulnerability Analysis</Text></View>
-            <VulnerabilityCard items={aiReport.userVulnerabilities} />
+            {!!(aiReport.userVulnerabilities && aiReport.userVulnerabilities.length > 0) && (
+              <>
+                <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Vulnerability Analysis</Text></View>
+                <VulnerabilityCard items={aiReport.userVulnerabilities} />
+              </>
+            )}
             
             <View style={{ marginTop: 16 }}><Text style={g.secTitle}>Injury Risk Analysis</Text></View>
             <InjuryCard risk={aiReport.injuryRisk} />
